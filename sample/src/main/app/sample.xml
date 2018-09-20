@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:db="http://www.mulesoft.org/schema/mule/db" xmlns:vm="http://www.mulesoft.org/schema/mule/vm" xmlns:ftp="http://www.mulesoft.org/schema/mule/ee/ftp" xmlns:tracking="http://www.mulesoft.org/schema/mule/ee/tracking" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:spring="http://www.springframework.org/schema/beans" 
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-current.xsd
+http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/ee/ftp http://www.mulesoft.org/schema/mule/ee/ftp/current/mule-ftp-ee.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/ee/tracking http://www.mulesoft.org/schema/mule/ee/tracking/current/mule-tracking-ee.xsd
+http://www.mulesoft.org/schema/mule/vm http://www.mulesoft.org/schema/mule/vm/current/mule-vm.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+    <http:listener-config name="HTTP_Listener_Configuration" host="0.0.0.0" port="8081" doc:name="HTTP Listener Configuration"/>
+    <http:request-config name="HTTP_Request_Configuration" host="google.com" port="80" doc:name="HTTP Request Configuration"/>
+    <db:mysql-config name="MySQL_Configuration" host="test" port="8080" user="test" password="test" database="test" doc:name="MySQL Configuration"/>
+    <http:request-config name="HTTP_Request_Configuration1" host="localhost" port="8081" doc:name="HTTP Request Configuration"/>
+    <flow name="sampleFlow2" processingStrategy="synchronous">
+        <http:listener config-ref="HTTP_Listener_Configuration" path="/test2" doc:name="HTTP"/>
+        <ee:multi-transactional action="ALWAYS_BEGIN" doc:name="Transactional">
+            <logger message="After HTTP Listener in Transaction scope" level="INFO" doc:name="Copy_of_Logger"/>
+            <db:select config-ref="MySQL_Configuration" doc:name="Copy_of_Database" transactionalAction="ALWAYS_JOIN">
+                <db:parameterized-query><![CDATA[select * from abc]]></db:parameterized-query>
+            </db:select>
+            <logger message="#[payload]" level="INFO" doc:name="Copy_of_Logger"/>
+            <rollback-exception-strategy maxRedeliveryAttempts="5" doc:name="Copy_of_Copy_of_Rollback Exception Strategy">
+                <logger message="In rollback exception in Transaction scope" level="INFO" doc:name="Copy_of_Copy_of_Logger"/>
+                <on-redelivery-attempts-exceeded>
+                    <logger message="In redelivery in Transaction scope" level="INFO" doc:name="Copy_of_Copy_of_Logger"/>
+                </on-redelivery-attempts-exceeded>
+            </rollback-exception-strategy>
+        </ee:multi-transactional>
+    </flow>
+    <flow name="sampleFlow1" processingStrategy="synchronous">
+        <vm:inbound-endpoint exchange-pattern="one-way" path="test2" doc:name="VM">
+            <vm:transaction action="ALWAYS_BEGIN"/>
+        </vm:inbound-endpoint>
+        <logger message="After HTTP Listener" level="INFO" doc:name="Logger"/>
+        <db:select config-ref="MySQL_Configuration" doc:name="Database" transactionalAction="ALWAYS_JOIN">
+            <db:parameterized-query><![CDATA[select * from abc]]></db:parameterized-query>
+        </db:select>
+        <logger message="#[payload]" level="INFO" doc:name="Logger"/>
+        <rollback-exception-strategy maxRedeliveryAttempts="25" doc:name="Rollback Exception Strategy">
+            <logger message="In rollback exception" level="INFO" doc:name="Logger"/>
+            <on-redelivery-attempts-exceeded>
+                <logger message="In redelivery" level="INFO" doc:name="Logger"/>
+            </on-redelivery-attempts-exceeded>
+        </rollback-exception-strategy>
+    </flow>
+    <flow name="sampleFlow" processingStrategy="synchronous">
+        <http:listener config-ref="HTTP_Listener_Configuration" path="/test" doc:name="HTTP"  />
+        <set-payload value="test" doc:name="Set Payload"/>
+        <vm:outbound-endpoint exchange-pattern="one-way" path="test" doc:name="VM"/>
+    </flow>
+    <flow name="Copy_of_sampleFlow" processingStrategy="synchronous">
+        <vm:inbound-endpoint exchange-pattern="one-way" path="test" doc:name="Copy_of_VM">
+            <vm:transaction action="ALWAYS_BEGIN"/>
+        </vm:inbound-endpoint>
+        <logger message="After HTTP Listener" level="INFO" doc:name="Copy_of_Logger"/>
+        <http:request config-ref="HTTP_Request_Configuration1" path="/test2" method="GET" doc:name="HTTP"/>
+        <logger message="#[payload]" level="INFO" doc:name="Copy_of_Logger"/>
+        <rollback-exception-strategy maxRedeliveryAttempts="25" doc:name="Copy_of_Rollback Exception Strategy">
+            <logger message="In rollback exception" level="INFO" doc:name="Copy_of_Logger"/>
+            <on-redelivery-attempts-exceeded>
+                <logger message="In redelivery" level="INFO" doc:name="Copy_of_Logger"/>
+            </on-redelivery-attempts-exceeded>
+        </rollback-exception-strategy>
+    </flow>
+    <flow name="Copy_of_sampleFlow1" processingStrategy="synchronous">
+        <http:listener config-ref="HTTP_Listener_Configuration" path="/test3" doc:name="Copy_of_HTTP"/>
+        <logger message="After HTTP Listener in Transaction scope" level="INFO" doc:name="Copy_of_Copy_of_Logger"/>
+        <db:select config-ref="MySQL_Configuration" transactionalAction="ALWAYS_JOIN" doc:name="Copy_of_Copy_of_Database">
+            <db:parameterized-query><![CDATA[select * from abc]]></db:parameterized-query>
+        </db:select>
+        <logger message="#[payload]" level="INFO" doc:name="Copy_of_Copy_of_Logger"/>
+        <rollback-exception-strategy maxRedeliveryAttempts="5" doc:name="Rollback Exception Strategy">
+            <logger message="In rollback exception" level="INFO" doc:name="Logger"/>
+            <on-redelivery-attempts-exceeded>
+                <logger message="Transaction exhausted" level="INFO" doc:name="Copy_of_Copy_of_Copy_of_Copy_of_Logger"/>
+            </on-redelivery-attempts-exceeded>
+        </rollback-exception-strategy>
+    </flow>
+</mule>
